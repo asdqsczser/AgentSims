@@ -1,8 +1,34 @@
 # AgentSims: An Open-Source Sandbox for Large Language Model Evaluation
+## Setup Instructions
+```
+1. git clone; Check config/app.json and config/api_key.json
+2. Run preprocess_before_start.py
+3. Start the backend server with ./restart.sh
+4. Open the browser to http://xxxx:xxxx/client/index.html
+5. Logs are stored in nohup.log
+```
+
+## Code Framework Overview
+```
+1. ./restart.sh starts main.py
+2. The browser loads index.html, which is the Unity frontend, and sends {"uri":"command.auth.Register","method":"POST","data":{"nickname":"Mayor","email":"Lixing@163.com","cryptoPWD":"123456"}} to the backend
+3. The on_message function in main.py receives the message and calls the execute method of the Register Class in the command.auth.Register folder
+4. command.auth.login_base initializes NPCs and the map
+5. When the tick button is clicked on the web frontend, {"uri":"command.tick.Tick","method":"POST","data":{}} is sent to the backend. Similarly, the backend calls the execute method of the TickStarter Class in the command.starter.TickStarter folder
+6. TickStarter actually invokes tick.py in the project directory. The asyncio.create_task(call_timetick(websocket)) sends a message to the backend to start command/timetick/Tick.py
+7. Tick-related configurations are detailed in config/app.json. For example, setting tick_count_limit=1 and manually running tick.py allows for step-by-step debugging
+8. command/timetick/Tick.py contains the main logic for the agent. It is somewhat complex and can be refactored in the future to add custom logic such as TickChat, TickMove, etc.
+9. The tick program and backend, as well as the frontend and backend, communicate through port 8000 (fixed). We mainly focus on frontend-backend communication. For example, websocket.send() at line 42 in command/timetick/Tick.py sends a message to the frontend to trigger character movement.
+10. Backend data is persisted in both snapshot/app.json and a MySQL database.
+11. Note that NPCs have states. Initially, they are in the "inited" state, and after the first tick, they transition to the "movings" state. Sometimes, if an NPC is not in the "movings" state, it won't execute the "movings" logic.
+"inited":[],"movings":["NPC-10002"],"chatted":[],"using":["NPC-10001","NPC-10002"],"cache":[]
+```
+
+
 ## 开启方法
 
 ```
-1.git clone
+1.git clone; 检查config/app.json和config/api_key.json
 2.运行preprocess_before_start.py
 3. 运行后端服务器 ./restart.sh
 4.浏览器打开 http://xxxx:xxxx/client/index.html
