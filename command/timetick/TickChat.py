@@ -81,7 +81,7 @@ class Tick(CommandBase):
             #     entity_model.flush()
             return 1
         else:
-            print("react start. uid:", uid)
+            print("react start. uid:", uid, "entity_model:", type(entity_model))
             sight = map_model.search_sight(entity_model.x, entity_model.y)
             if isinstance(entity_model, PlayerModel.PlayerModel):
                 info = {"source": "timetick-finishMoving", "data": {
@@ -167,11 +167,9 @@ class Tick(CommandBase):
         entity_model.flush()
 
     async def parse_react(self, result: Dict[str, Any], entity_model, map_id, map_model, uid):
-        print("parse_react from LLM Agent. uid:", uid, "result:", json.dumps(result.get("data", {}), ensure_ascii=False, separators=(",", ":")))
-        # print("parse_react with prompt from LLM Agent. uid:", uid, "result:", json.dumps(result, ensure_ascii=False, separators=(",", ":")))
+        print("parse_react uid:", uid, "result:", json.dumps(result, ensure_ascii=False, separators=(",", ":")))
         self.app.send(f"Player-{map_id}", {"code": 200, "uri": "NPC-React", "uid": uid, "data": {"uid": uid, "reaction": result}})
         if "newPlan" in result["data"]:
-            print(f"start newPlan uid:{uid}")
             try:
                 entity_model.plan = result["data"]["newPlan"]["purpose"]
             except:
@@ -215,7 +213,6 @@ class Tick(CommandBase):
                         entity_model.flush()
             self.app.movings.add(uid)
         elif "chat" in result["data"]:
-            print(f"start chat uid:{uid}")
             person = result['data']['person']
             tuid = map_model.name2uid.get(person)
             if tuid and tuid.partition("-")[0] == "NPC":
@@ -230,7 +227,6 @@ class Tick(CommandBase):
                 await self._execute_chat(map_id, map_model, uid, entity_model, tuid, target_model, chats, topic)
             self.app.chatted.add(uid)
         elif "use" in result["data"]:
-            print(f"start use uid:{uid}")
             equipment = result['data']['equipment']
             equipment_id = 0
             equipment_model = None
@@ -344,12 +340,10 @@ class Tick(CommandBase):
         entity_model.new_chats = list()
         entity_model.save()
         entity_model.flush()
-        # 调用大模型
         result = await self.app.actors[chat].react(info)
         if result["status"] == 500:
             pass# self.app.cache.append({"uid": chat, "info": info})
         else:
-            # 同步到unity前端
             await self.parse_react(result, entity_model, map_id, map_model, chat)
             counter += 1
         return counter
@@ -404,8 +398,6 @@ class Tick(CommandBase):
                     
 
     async def execute(self, params):
-        print()
-        print("timetick execute start ########################")
         # update timetick
         if self.app.tick_state["start"]:
             asyncio.create_task(self.execute_eval())
@@ -417,8 +409,7 @@ class Tick(CommandBase):
 
         # using
         using = self.app.using
-        if using:
-            print("before solving using:", using)
+        print("before solving using:", using)
         uses = list()
         self.app.using = set()
         for use in using:
@@ -427,8 +418,7 @@ class Tick(CommandBase):
 
         # chatted
         chatted = self.app.chatted # e.g.{'NPC-10001'}
-        if chatted:
-            print("before solving chatted:", chatted)
+        print("before solving chatted:", chatted)
         chats = list()
         self.app.chatted = set()
         for chat in chatted:
@@ -448,8 +438,7 @@ class Tick(CommandBase):
         # move
         movings = self.app.movings
         moves = list()
-        if movings:
-            print("before solving movings:", movings)
+        print("before solving movings:", movings)
         self.app.movings = set()
         for moving in movings:
             move_task = asyncio.create_task(self.solve_moving(moving))
@@ -457,8 +446,7 @@ class Tick(CommandBase):
         
         # inited
         inited = self.app.inited
-        if inited:
-            print("before solving inited:", inited)
+        print("before solving inited:", inited)
         inits = list()
         self.app.inited = set()
         for init in inited:
@@ -466,8 +454,7 @@ class Tick(CommandBase):
             inits.append(init_task)
 
         infos = self.app.cache # to solve agent occupied problem
-        if infos:
-            print("before solving cache:", infos)
+        print("before solving cache:", infos)
         caches = list()
         self.app.cache = list()
         for info in infos:
@@ -488,16 +475,10 @@ class Tick(CommandBase):
         if counter["moving"] or counter["chatted"] or counter["using"] or counter["inited"] or counter["cache"]:
             self.app.tick_state["tick_count"] += 1
 
-        if self.app.movings:
-            print("movings:", self.app.movings)
-        if self.app.cache:
-            print("cache:", self.app.cache)
-        if self.app.inited:
-            print("inited:", self.app.inited)
-        if self.app.using:
-            print("using:", self.app.using)
-        if self.app.chatted:
-            print("chatted:", self.app.chatted)
-        print(f"timetick {self.app.tick_state['tick_count']} execute end ########################")
-        print()
+        print("movings:", self.app.movings)
+        print("cache:", self.app.cache)
+        print("inited:", self.app.inited)
+        print("using:", self.app.using)
+        print("chatted:", self.app.chatted)
+
         return counter

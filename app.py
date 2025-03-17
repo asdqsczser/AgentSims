@@ -125,7 +125,7 @@ class App:
             message = json.dumps(message, ensure_ascii=False, separators=(",", ":"))
         if uid in self.id_to_ws:
             try:
-                print(f"sending message to {uid}: {message}")
+                print(f"sending message to Unity. {uid}: {message}")
                 self.id_to_ws[uid].write_message(message)
             except Exception as e:
                 print("sending message and met error:", e)
@@ -143,6 +143,7 @@ class App:
         try:
             info = json.loads(message)
         except Exception as e:
+            print("json loads error in execute:", e)
             return ws.write_message('message received:' + message)
         ret_data = {"code": 500, "data": {}, "uid": None, "msg": "no URI appointed"}
         uid = ""

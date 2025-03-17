@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 import json
 import asyncio
 
-class Tick(CommandBase):
+class TickMove(CommandBase):
     """time tick."""
     def is_check_token(self):
         return False
@@ -30,8 +30,9 @@ class Tick(CommandBase):
         return entity_type, entity_id, entity_model, map_id, map_model
     
     async def move(self, entity_model, map_id, map_model, entity_type, uid) -> int:
+        # 从数据库里取的
         path = entity_model.path
-        print("move uid:", uid, "path:", path)
+        print("move uid:", uid, "path:", path, "map_id", map_id)
         # moves = 1
         # if entity_model.last_move:
         # if len(path) <= 3:
@@ -39,6 +40,7 @@ class Tick(CommandBase):
         moves = len(path)
         # print(moves)
         if moves:
+            # 发送到unity前端
             self.app.send(f"Player-{map_id}", {"code": 200, "uri": "movePath", "uid": uid, "data": {"uid": uid, "path": [{"x": x[0], "y": x[1]} for x in path[:moves]]}})
             for _ in range(moves):
                 if path:
@@ -56,7 +58,9 @@ class Tick(CommandBase):
                 else:
                     break
             entity_model.last_move = self.app.last_game_time
-            if path:
+            # if path:
+            if path is not None:
+                print("entity_model flush. path:", path, "entity_model:", entity_model, "uid:", uid)
                 entity_model.path = [[x[0], x[1]] for x in path]
                 entity_model.save()
                 entity_model.flush()
@@ -80,29 +84,30 @@ class Tick(CommandBase):
             #     entity_model.save()
             #     entity_model.flush()
             return 1
-        else:
-            print("react start. uid:", uid)
-            sight = map_model.search_sight(entity_model.x, entity_model.y)
-            if isinstance(entity_model, PlayerModel.PlayerModel):
-                info = {"source": "timetick-finishMoving", "data": {
-                    "people": sight["people"],
-                    "equipments": sight["equipments"],
-                    "cash": entity_model.revenue,
-                    "game_time": self.app.last_game_time,
-                }}
-            else:
-                info = {"source": "timetick-finishMoving", "data": {
-                    "people": sight["people"],
-                    "equipments": sight["equipments"],
-                    "cash": entity_model.cash,
-                    "game_time": self.app.last_game_time,
-                }}
-            result = await self.app.actors[uid].react(info)
-            if result["status"] == 500:
-                pass# self.app.cache.append({"uid": uid, "info": info})
-            else:
-                await self.parse_react(result, entity_model, map_id, map_model, uid)
-            return 0
+        # else:
+        #     print("react start. uid:", uid, "entity_model:", type(entity_model))
+        #     sight = map_model.search_sight(entity_model.x, entity_model.y)
+        #     if isinstance(entity_model, PlayerModel.PlayerModel):
+        #         info = {"source": "timetick-finishMoving", "data": {
+        #             "people": sight["people"],
+        #             "equipments": sight["equipments"],
+        #             "cash": entity_model.revenue,
+        #             "game_time": self.app.last_game_time,
+        #         }}
+        #     else:
+        #         info = {"source": "timetick-finishMoving", "data": {
+        #             "people": sight["people"],
+        #             "equipments": sight["equipments"],
+        #             "cash": entity_model.cash,
+        #             "game_time": self.app.last_game_time,
+        #         }}
+        #     result = await self.app.actors[uid].react(info)
+        #     if result["status"] == 500:
+        #         pass# self.app.cache.append({"uid": uid, "info": info})
+        #     else:
+        #         await self.parse_react(result, entity_model, map_id, map_model, uid)
+        #     return 0
+        return 0
     
     async def _execute_chat(self, map_id, map_model, uid, entity_model, tuid, target_model, chats, topic=""):
         source_sight = map_model.search_sight(entity_model.x, entity_model.y)
@@ -167,11 +172,9 @@ class Tick(CommandBase):
         entity_model.flush()
 
     async def parse_react(self, result: Dict[str, Any], entity_model, map_id, map_model, uid):
-        print("parse_react from LLM Agent. uid:", uid, "result:", json.dumps(result.get("data", {}), ensure_ascii=False, separators=(",", ":")))
-        # print("parse_react with prompt from LLM Agent. uid:", uid, "result:", json.dumps(result, ensure_ascii=False, separators=(",", ":")))
+        print("parse_react uid:", uid, "result:", json.dumps(result, ensure_ascii=False, separators=(",", ":")))
         self.app.send(f"Player-{map_id}", {"code": 200, "uri": "NPC-React", "uid": uid, "data": {"uid": uid, "reaction": result}})
         if "newPlan" in result["data"]:
-            print(f"start newPlan uid:{uid}")
             try:
                 entity_model.plan = result["data"]["newPlan"]["purpose"]
             except:
@@ -215,7 +218,6 @@ class Tick(CommandBase):
                         entity_model.flush()
             self.app.movings.add(uid)
         elif "chat" in result["data"]:
-            print(f"start chat uid:{uid}")
             person = result['data']['person']
             tuid = map_model.name2uid.get(person)
             if tuid and tuid.partition("-")[0] == "NPC":
@@ -230,7 +232,6 @@ class Tick(CommandBase):
                 await self._execute_chat(map_id, map_model, uid, entity_model, tuid, target_model, chats, topic)
             self.app.chatted.add(uid)
         elif "use" in result["data"]:
-            print(f"start use uid:{uid}")
             equipment = result['data']['equipment']
             equipment_id = 0
             equipment_model = None
@@ -344,12 +345,10 @@ class Tick(CommandBase):
         entity_model.new_chats = list()
         entity_model.save()
         entity_model.flush()
-        # 调用大模型
         result = await self.app.actors[chat].react(info)
         if result["status"] == 500:
             pass# self.app.cache.append({"uid": chat, "info": info})
         else:
-            # 同步到unity前端
             await self.parse_react(result, entity_model, map_id, map_model, chat)
             counter += 1
         return counter
@@ -404,36 +403,32 @@ class Tick(CommandBase):
                     
 
     async def execute(self, params):
-        print()
-        print("timetick execute start ########################")
         # update timetick
-        if self.app.tick_state["start"]:
-            asyncio.create_task(self.execute_eval())
-        if self.app.tick_state["tick_count"] >= self.app.config.tick_count_limit and self.app.tick_state["start"]:
-            return self.error("tick counts over limit")
-        next_day = self.next_time()
+        # if self.app.tick_state["start"]:
+        #     asyncio.create_task(self.execute_eval())
+        # if self.app.tick_state["tick_count"] >= self.app.config.tick_count_limit and self.app.tick_state["start"]:
+        #     return self.error("tick counts over limit")
+        # next_day = self.next_time()
 
         counter = {'moving': 0, 'chatted': 0, 'using': 0, 'inited': 0, 'cache': 0}
-
-        # using
-        using = self.app.using
-        if using:
-            print("before solving using:", using)
-        uses = list()
-        self.app.using = set()
-        for use in using:
-            use_task = asyncio.create_task(self.solve_use(use))
-            uses.append(use_task)
-
-        # chatted
-        chatted = self.app.chatted # e.g.{'NPC-10001'}
-        if chatted:
-            print("before solving chatted:", chatted)
-        chats = list()
-        self.app.chatted = set()
-        for chat in chatted:
-            chat_task = asyncio.create_task(self.solve_chat(chat))
-            chats.append(chat_task)
+        #
+        # # using
+        # using = self.app.using
+        # print("before solving using:", using)
+        # uses = list()
+        # self.app.using = set()
+        # for use in using:
+        #     use_task = asyncio.create_task(self.solve_use(use))
+        #     uses.append(use_task)
+        #
+        # # chatted
+        # chatted = self.app.chatted # e.g.{'NPC-10001'}
+        # print("before solving chatted:", chatted)
+        # chats = list()
+        # self.app.chatted = set()
+        # for chat in chatted:
+        #     chat_task = asyncio.create_task(self.solve_chat(chat))
+        #     chats.append(chat_task)
         
         # if next_day:
         #     for uid, actor in self.app.actors:
@@ -448,56 +443,47 @@ class Tick(CommandBase):
         # move
         movings = self.app.movings
         moves = list()
-        if movings:
-            print("before solving movings:", movings)
+        print("before solving movings:", movings)
         self.app.movings = set()
         for moving in movings:
             move_task = asyncio.create_task(self.solve_moving(moving))
             moves.append(move_task)
         
-        # inited
-        inited = self.app.inited
-        if inited:
-            print("before solving inited:", inited)
-        inits = list()
-        self.app.inited = set()
-        for init in inited:
-            init_task = asyncio.create_task(self.solve_init(init))
-            inits.append(init_task)
-
-        infos = self.app.cache # to solve agent occupied problem
-        if infos:
-            print("before solving cache:", infos)
-        caches = list()
-        self.app.cache = list()
-        for info in infos:
-            cache_task = asyncio.create_task(self.solve_cache(info))
-            caches.append(cache_task)
-
-        for move in moves:
-            counter["moving"] += await move
-        for chat in chats:
-            counter["chatted"] += await chat
-        for use in uses:
-            counter["using"] += await use
-        for init in inits:
-            counter["inited"] += await init
-        for cache in caches:
-            counter["cache"] += await cache
+        # # inited
+        # inited = self.app.inited
+        # print("before solving inited:", inited)
+        # inits = list()
+        # self.app.inited = set()
+        # for init in inited:
+        #     init_task = asyncio.create_task(self.solve_init(init))
+        #     inits.append(init_task)
+        #
+        # infos = self.app.cache # to solve agent occupied problem
+        # print("before solving cache:", infos)
+        # caches = list()
+        # self.app.cache = list()
+        # for info in infos:
+        #     cache_task = asyncio.create_task(self.solve_cache(info))
+        #     caches.append(cache_task)
+        #
+        # for move in moves:
+        #     counter["moving"] += await move
+        # for chat in chats:
+        #     counter["chatted"] += await chat
+        # for use in uses:
+        #     counter["using"] += await use
+        # for init in inits:
+        #     counter["inited"] += await init
+        # for cache in caches:
+        #     counter["cache"] += await cache
         
-        if counter["moving"] or counter["chatted"] or counter["using"] or counter["inited"] or counter["cache"]:
-            self.app.tick_state["tick_count"] += 1
+        # if counter["moving"] or counter["chatted"] or counter["using"] or counter["inited"] or counter["cache"]:
+        #     self.app.tick_state["tick_count"] += 1
 
-        if self.app.movings:
-            print("movings:", self.app.movings)
-        if self.app.cache:
-            print("cache:", self.app.cache)
-        if self.app.inited:
-            print("inited:", self.app.inited)
-        if self.app.using:
-            print("using:", self.app.using)
-        if self.app.chatted:
-            print("chatted:", self.app.chatted)
-        print(f"timetick {self.app.tick_state['tick_count']} execute end ########################")
-        print()
+        # print("movings:", self.app.movings)
+        # print("cache:", self.app.cache)
+        # print("inited:", self.app.inited)
+        # print("using:", self.app.using)
+        # print("chatted:", self.app.chatted)
+
         return counter

@@ -1,4 +1,32 @@
 # AgentSims: An Open-Source Sandbox for Large Language Model Evaluation
+## 开启方法
+
+```
+1.git clone
+2.运行preprocess_before_start.py
+3. 运行后端服务器 ./restart.sh
+4.浏览器打开 http://xxxx:xxxx/client/index.html
+5.日志文件在 nohup.log
+``` 
+
+## 代码框架学习
+```
+1. ./restart.sh启动了main.py
+2. 浏览器index.html，即unity前端，发送 {"uri":"command.auth.Register","method":"POST","data":{"nickname":"Mayor","email":"Lixing@163.com","cryptoPWD":"123456"}} 到后端
+3. main.py中的on_message函数接收到消息后，调用command.auth.Register文件夹下的Register Class的execute方法
+4. command.auth.login_base对NPC和地图进行了初始化
+5. 我们在网页前端中点击了tick按钮，发送了{"uri":"command.tick.Tick","method":"POST","data":{}}到后端，类似的, 后端开始调用command.starter.TickStarter文件夹下的TickStarter Class的execute方法
+6. TickStarter实际上是调用了项目路径下的tick.py，其中asyncio.create_task(call_timetick(websocket))会发消息给后端来启动command/timetick/Tick.py
+7. tick相关配置详见config/app.json，如设置tick_count_limit=1, 并手动运行tick.py可以实现单步调试
+8. command/timetick/Tick.py是agent的主要逻辑，写的有点复杂，后续可以分拆逻辑，添加自己的逻辑如TickChat、TickMove等
+9. tick程序和后端、前端和后端 都通过8000端口(固定)通讯。我们主要看前后端通讯，如command/timetick/Tick.py:42行的websocket.send()发送消息到前端，调用前端的人物移动。
+10. 后端的数据同时持久化在snapshot/app.json 和 mysql数据库中。
+11. 注意NPC是有状态的，一开始是inited状态，第一个tick后变成movings状态，有时候NPC不在movings状态就不会走movings逻辑。
+"inited":[],"movings":["NPC-10002"],"chatted":[],"using":["NPC-10001","NPC-10002"],"cache":[]
+``` 
+
+
+
 How to evaluate the ability of large language models (LLM) is an open question after ChatGPT-like LLMs prevailing the community. Existing evaluation methods suffer from following shortcomings: (1) constrained evaluation abilities, (2) vulnerable benchmarks, (3) unobjective metrics. We suggest that task-based evaluation, where LLM agents complete tasks in a simulated environment, is a one-for-all solution to solve above problems. 
 
 We present <a href="https://www.agentsims.com/" title="AgentSims">AgentSims</a>, an easy-to-use infrastructure for researchers from all disciplines to test the specific capacities they are interested in. Researchers can build their evaluation tasks by adding agents and buildings on an interactive GUI or deploy and test new support mechanisms, i.e. memory system and planning system, by a few lines of codes.  The demonstration is on https://agentsims.com/.

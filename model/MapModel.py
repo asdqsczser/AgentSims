@@ -235,5 +235,6 @@ class MapModel(SingleModelBase):
                             if e and e['n'] not in equipment_names:
                                 equipment.append({"id": e["id"], "building_id": e["b"], "name": e['n'], "description": e['d'], "menu": e['m']})
                                 equipment_names.add(e['n'])
-        print({"people": people, "equipments": equipment})
+        print("search_sight end. ")
+        # print("search_sight end. ", {"people": people, "equipments": equipment})
         return {"people": people, "equipments": equipment}

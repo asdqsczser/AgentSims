@@ -147,11 +147,15 @@ class NPCModel(SingleModelBase):
         self.act = action
     
     def add_chat(self, uid, content, isSender=True):
+        print(f'add_chat. uid: {uid}, content: {content}, isSender: {isSender}')
         chats = self.chats.get(uid, list())[::-1]
         if chats and self.app.last_game_time - chats[-1]["createTime"] >= 1000 * 60 * 60 * 3:
             chats = list()
-        assert type(content) is str and ': ' in content, f' content should be a string with ": ", your content is {content} '
-        chats.append({"createTime": self.app.last_game_time, "content": content.partition(": ")[2], "isSender": isSender})
+        if type(content) is str and ': ' in content:
+            chats.append({"createTime": self.app.last_game_time, "content": content.partition(": ")[2], "isSender": isSender})
+        else:
+            print(f'add_chat. content should be a string with ": ", your content is {content} ')
+            chats.append({"createTime": self.app.last_game_time, "content": content, "isSender": isSender})
         chats = chats[::-1]
         if len(chats) > 10:
             chats = chats[:10]

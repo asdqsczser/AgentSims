@@ -2,6 +2,9 @@ import json
 from mysql.connector import errorcode
 from utils.mysql import Mysql
 from model.model_base import ModelBase
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 
 class SingleModelBase(ModelBase):

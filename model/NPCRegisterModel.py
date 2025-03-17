@@ -13,7 +13,7 @@ class NPCRegisterModel(ModelBase):
         # Find npc=id map from reversed finding table.
         query = f"""
             SELECT
-                  
+                  `npcpair`
             FROM 
                 `find_npc_id` 
             WHERE 
